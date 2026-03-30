@@ -1,0 +1,265 @@
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const statusEl = document.getElementById('status');
+const restartButton = document.getElementById('restartButton');
+
+const canvasWidth = canvas.width;
+const canvasHeight = canvas.height;
+const groundY = canvasHeight - 80;
+
+let gameState = 'start';
+let score = 0;
+let highScore = 0;
+let speed = 300;
+let scroll = 0;
+let lastTime = 0;
+let obstacleTimer = 0;
+let obstacles = [];
+
+const duck = {
+  x: 140,
+  y: groundY - 80,
+  width: 60,
+  height: 48,
+  vy: 0,
+  gravity: 2000,
+  jumpForce: -680,
+  grounded: true,
+};
+
+function resetGame() {
+  score = 0;
+  speed = 300;
+  scroll = 0;
+  obstacleTimer = 0;
+  obstacles = [];
+  duck.y = groundY - duck.height;
+  duck.vy = 0;
+  duck.grounded = true;
+  statusEl.textContent = 'Press space or click to start';
+  updateScore();
+}
+
+function updateScore() {
+  scoreEl.textContent = score;
+}
+
+function spawnObstacle() {
+  const width = Math.random() * 30 + 28;
+  const height = Math.random() * 60 + 40;
+  obstacles.push({
+    x: canvasWidth + 40,
+    y: groundY - height,
+    width,
+    height,
+    passed: false,
+  });
+}
+
+function drawDuck(x, y, width, height) {
+  const bodyRadius = height * 0.44;
+  const bodyX = x + width * 0.15;
+  const bodyY = y + height * 0.42;
+
+  ctx.save();
+
+  // Body
+  ctx.fillStyle = '#ffd23f';
+  ctx.beginPath();
+  ctx.ellipse(bodyX, bodyY, bodyRadius, bodyRadius * 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head
+  ctx.beginPath();
+  ctx.arc(x + width * 0.7, y + height * 0.24, height * 0.24, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wing
+  ctx.fillStyle = '#ffb700';
+  ctx.beginPath();
+  ctx.ellipse(bodyX + 8, bodyY, bodyRadius * 0.55, bodyRadius * 0.3, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Beak
+  ctx.fillStyle = '#ff8d1a';
+  ctx.beginPath();
+  ctx.moveTo(x + width * 0.97, y + height * 0.24);
+  ctx.lineTo(x + width * 0.85, y + height * 0.16);
+  ctx.lineTo(x + width * 0.85, y + height * 0.32);
+  ctx.closePath();
+  ctx.fill();
+
+  // Eye
+  ctx.fillStyle = '#102237';
+  ctx.beginPath();
+  ctx.arc(x + width * 0.78, y + height * 0.18, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Foot
+  ctx.fillStyle = '#ff8d1a';
+  ctx.beginPath();
+  ctx.moveTo(bodyX - 10, y + height * 0.9);
+  ctx.lineTo(bodyX + 8, y + height * 0.95);
+  ctx.lineTo(bodyX - 8, y + height * 1.05);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawBackground(delta) {
+  scroll -= speed * delta * 0.2;
+  if (scroll <= -140) scroll += 140;
+
+  ctx.fillStyle = '#0b1630';
+  ctx.fillRect(0, 0, canvasWidth, groundY);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < canvasWidth / 80 + 4; i++) {
+    const px = (i * 80 + scroll) % 80 - 80;
+    ctx.beginPath();
+    ctx.moveTo(px, groundY - 140);
+    ctx.lineTo(px + 30, groundY - 120);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.fillStyle = '#193a6b';
+  for (let i = 0; i < 4; i++) {
+    const cloudX = ((i * 280 + scroll * 0.6 + 400) % (canvasWidth + 180)) - 180;
+    ctx.beginPath();
+    ctx.arc(cloudX + 50, 90, 24, 0, Math.PI * 2);
+    ctx.arc(cloudX + 80, 80, 32, 0, Math.PI * 2);
+    ctx.arc(cloudX + 112, 95, 24, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawGround() {
+  ctx.fillStyle = '#13203a';
+  ctx.fillRect(0, groundY, canvasWidth, canvasHeight - groundY);
+  ctx.strokeStyle = '#1f3b5e';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, groundY + 6);
+  ctx.lineTo(canvasWidth, groundY + 6);
+  ctx.stroke();
+}
+
+function drawObstacles() {
+  ctx.fillStyle = '#ff4f58';
+  ctx.strokeStyle = '#9b2a32';
+  ctx.lineWidth = 3;
+  obstacles.forEach((obs) => {
+    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+    ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+  });
+}
+
+function collide(rectA, rectB) {
+  return (
+    rectA.x < rectB.x + rectB.width &&
+    rectA.x + rectA.width > rectB.x &&
+    rectA.y < rectB.y + rectB.height &&
+    rectA.y + rectA.height > rectB.y
+  );
+}
+
+function update(delta) {
+  if (gameState !== 'playing') return;
+
+  duck.vy += duck.gravity * delta;
+  duck.y += duck.vy * delta;
+
+  if (duck.y >= groundY - duck.height) {
+    duck.y = groundY - duck.height;
+    duck.vy = 0;
+    duck.grounded = true;
+  }
+
+  obstacleTimer += delta;
+  if (obstacleTimer > 1.4) {
+    spawnObstacle();
+    obstacleTimer = 0;
+  }
+
+  obstacles = obstacles
+    .map((obs) => ({ ...obs, x: obs.x - speed * delta }))
+    .filter((obs) => obs.x + obs.width > -50);
+
+  obstacles.forEach((obs) => {
+    if (!obs.passed && obs.x + obs.width < duck.x) {
+      score += 1;
+      obs.passed = true;
+      updateScore();
+      speed = 300 + Math.min(score * 18, 260);
+    }
+    if (collide(duck, obs)) {
+      gameState = 'gameover';
+      statusEl.textContent = 'Game over — press restart or click to play again';
+    }
+  });
+}
+
+function render(delta) {
+  drawBackground(delta);
+  drawGround();
+  drawObstacles();
+  drawDuck(duck.x, duck.y, duck.width, duck.height);
+}
+
+function gameLoop(timestamp) {
+  const delta = Math.min((timestamp - lastTime) / 1000, 0.033);
+  lastTime = timestamp;
+
+  if (gameState === 'playing') {
+    update(delta);
+  }
+  render(delta);
+
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  if (gameState === 'playing') return;
+  if (gameState === 'gameover') {
+    resetGame();
+  }
+  gameState = 'playing';
+  statusEl.textContent = 'Jump to dodge the obstacles!';
+}
+
+function jump() {
+  if (gameState === 'start') {
+    startGame();
+  }
+  if (gameState === 'playing' && duck.grounded) {
+    duck.vy = duck.jumpForce;
+    duck.grounded = false;
+  }
+  if (gameState === 'gameover') {
+    resetGame();
+    startGame();
+  }
+}
+
+window.addEventListener('keydown', (event) => {
+  if (event.code === 'Space') {
+    event.preventDefault();
+    jump();
+  }
+});
+
+canvas.addEventListener('pointerdown', jump);
+restartButton.addEventListener('click', () => {
+  resetGame();
+  startGame();
+});
+
+resetGame();
+requestAnimationFrame((timestamp) => {
+  lastTime = timestamp;
+  gameLoop(timestamp);
+});
