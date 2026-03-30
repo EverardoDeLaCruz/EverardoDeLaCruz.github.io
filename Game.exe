@@ -1,414 +1,193 @@
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const scoreEl = document.getElementById('score');
-const statusEl = document.getElementById('status');
-const restartButton = document.getElementById('restartButton');
-
-const canvasWidth = canvas.width;
-const canvasHeight = canvas.height;
-const groundY = canvasHeight - 80;
-
-let gameState = 'start';
-let score = 0;
-let highScore = 0;
-let speed = 300;
-let scroll = 0;
-let lastTime = 0;
-let obstacleTimer = 0;
-let obstacles = [];
-
-const duck = {
-  x: 140,
-  y: groundY - 80,
-  width: 60,
-  height: 48,
-  vy: 0,
-  gravity: 2000,
-  jumpForce: -680,
-  grounded: true,
-};
-
-function resetGame() {
-  score = 0;
-  speed = 300;
-  scroll = 0;
-  obstacleTimer = 0;
-  obstacles = [];
-  duck.y = groundY - duck.height;
-  duck.vy = 0;
-  duck.grounded = true;
-  statusEl.textContent = 'Press space or click to start';
-  updateScore();
-}
-
-function updateScore() {
-  scoreEl.textContent = score;
-}
-
-function spawnObstacle() {
-  const width = Math.random() * 30 + 28;
-  const height = Math.random() * 60 + 40;
-  obstacles.push({
-    x: canvasWidth + 40,
-    y: groundY - height,
-    width,
-    height,
-    passed: false,
-  });
-}
-
-function drawDuck(x, y, width, height) {
-  const bodyRadius = height * 0.44;
-  const bodyX = x + width * 0.15;
-  const bodyY = y + height * 0.42;
-
-  ctx.save();
-
-  // Body
-  ctx.fillStyle = '#ffd23f';
-  ctx.beginPath();
-  ctx.ellipse(bodyX, bodyY, bodyRadius, bodyRadius * 0.7, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Head
-  ctx.beginPath();
-  ctx.arc(x + width * 0.7, y + height * 0.24, height * 0.24, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Wing
-  ctx.fillStyle = '#ffb700';
-  ctx.beginPath();
-  ctx.ellipse(bodyX + 8, bodyY, bodyRadius * 0.55, bodyRadius * 0.3, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Beak
-  ctx.fillStyle = '#ff8d1a';
-  ctx.beginPath();
-  ctx.moveTo(x + width * 0.97, y + height * 0.24);
-  ctx.lineTo(x + width * 0.85, y + height * 0.16);
-  ctx.lineTo(x + width * 0.85, y + height * 0.32);
-  ctx.closePath();
-  ctx.fill();
-
-  // Eye
-  ctx.fillStyle = '#102237';
-  ctx.beginPath();
-  ctx.arc(x + width * 0.78, y + height * 0.18, 5, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Foot
-  ctx.fillStyle = '#ff8d1a';
-  ctx.beginPath();
-  ctx.moveTo(bodyX - 10, y + height * 0.9);
-  ctx.lineTo(bodyX + 8, y + height * 0.95);
-  ctx.lineTo(bodyX - 8, y + height * 1.05);
-  ctx.fill();
-
-  ctx.restore();
-}
-
-function drawBackground(delta) {
-  scroll -= speed * delta * 0.2;
-  if (scroll <= -140) scroll += 140;
-
-  ctx.fillStyle = '#0b1630';
-  ctx.fillRect(0, 0, canvasWidth, groundY);
-
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < canvasWidth / 80 + 4; i++) {
-    const px = (i * 80 + scroll) % 80 - 80;
-    ctx.beginPath();
-    ctx.moveTo(px, groundY - 140);
-    ctx.lineTo(px + 30, groundY - 120);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.fillStyle = '#193a6b';
-  for (let i = 0; i < 4; i++) {
-    const cloudX = ((i * 280 + scroll * 0.6 + 400) % (canvasWidth + 180)) - 180;
-    ctx.beginPath();
-    ctx.arc(cloudX + 50, 90, 24, 0, Math.PI * 2);
-    ctx.arc(cloudX + 80, 80, 32, 0, Math.PI * 2);
-    ctx.arc(cloudX + 112, 95, 24, 0, Math.PI * 2);
-    ctx.fill();
-  }
-}
-
-function drawGround() {
-  ctx.fillStyle = '#13203a';
-  ctx.fillRect(0, groundY, canvasWidth, canvasHeight - groundY);
-  ctx.strokeStyle = '#1f3b5e';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(0, groundY + 6);
-  ctx.lineTo(canvasWidth, groundY + 6);
-  ctx.stroke();
-}
-
-function drawObstacles() {
-  ctx.fillStyle = '#ff4f58';
-  ctx.strokeStyle = '#9b2a32';
-  ctx.lineWidth = 3;
-  obstacles.forEach((obs) => {
-    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-    ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-  });
-}
-
-function collide(rectA, rectB) {
-  return (
-    rectA.x < rectB.x + rectB.width &&
-    rectA.x + rectA.width > rectB.x &&
-    rectA.y < rectB.y + rectB.height &&
-    rectA.y + rectA.height > rectB.y
-  );
-}
-
-function update(delta) {
-  if (gameState !== 'playing') return;
-
-  duck.vy += duck.gravity * delta;
-  duck.y += duck.vy * delta;
-
-  if (duck.y >= groundY - duck.height) {
-    duck.y = groundY - duck.height;
-    duck.vy = 0;
-    duck.grounded = true;
-  }
-
-  obstacleTimer += delta;
-  if (obstacleTimer > 1.4) {
-    spawnObstacle();
-    obstacleTimer = 0;
-  }
-
-  obstacles = obstacles
-    .map((obs) => ({ ...obs, x: obs.x - speed * delta }))
-    .filter((obs) => obs.x + obs.width > -50);
-
-  obstacles.forEach((obs) => {
-    if (!obs.passed && obs.x + obs.width < duck.x) {
-      score += 1;
-      obs.passed = true;
-      updateScore();
-      speed = 300 + Math.min(score * 18, 260);
-    }
-    if (collide(duck, obs)) {
-      gameState = 'gameover';
-      statusEl.textContent = 'Game over — press restart or click to play again';
-    }
-  });
-}
-
-function render(delta) {
-  drawBackground(delta);
-  drawGround();
-  drawObstacles();
-  drawDuck(duck.x, duck.y, duck.width, duck.height);
-}
-
-function gameLoop(timestamp) {
-  const delta = Math.min((timestamp - lastTime) / 1000, 0.033);
-  lastTime = timestamp;
-
-  if (gameState === 'playing') {
-    update(delta);
-  }
-  render(delta);
-
-  requestAnimationFrame(gameLoop);
-}
-
-function startGame() {
-  if (gameState === 'playing') return;
-  if (gameState === 'gameover') {
-    resetGame();
-  }
-  gameState = 'playing';
-  statusEl.textContent = 'Jump to dodge the obstacles!';
-}
-
-function jump() {
-  if (gameState === 'start') {
-    startGame();
-  }
-  if (gameState === 'playing' && duck.grounded) {
-    duck.vy = duck.jumpForce;
-    duck.grounded = false;
-  }
-  if (gameState === 'gameover') {
-    resetGame();
-    startGame();
-  }
-}
-
-window.addEventListener('keydown', (event) => {
-  if (event.code === 'Space') {
-    event.preventDefault();
-    jump();
-  }
-});
-
-canvas.addEventListener('pointerdown', jump);
-restartButton.addEventListener('click', () => {
-  resetGame();
-  startGame();
-});
-
-resetGame();
-requestAnimationFrame((timestamp) => {
-  lastTime = timestamp;
-  gameLoop(timestamp);
-}); 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Duck Dash — Geometry Dash Duck Clone</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="UTF-8">
+<title>Geometry Dash Mini</title>
+<style>
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(135deg, #0f2027, #2c5364);
+        color: white;
+        text-align: center;
+    }
+
+    canvas {
+        display: block;
+        margin: 20px auto;
+        background: #111;
+        border-radius: 10px;
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    .screen {
+        position: absolute;
+        width: 100%;
+        top: 30%;
+        left: 0;
+    }
+
+    button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        background: #00c9a7;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background: #00a38a;
+    }
+
+    #score {
+        font-size: 20px;
+    }
+</style>
 </head>
 <body>
-  <div class="app-shell">
-    <header>
-      <h1>Duck Dash</h1>
-      <p>Press <strong>space</strong> or click/tap to jump. Dodge the obstacles!</p>
-    </header>
 
-    <div class="hud">
-      <div class="score">Score: <span id="score">0</span></div>
-      <div class="status" id="status">Press space or click to start</div>
-    </div>
+<div id="startScreen" class="screen">
+    <h1>Geometry Dash Mini</h1>
+    <p>Press <b>SPACEBAR</b> to jump</p>
+    <p>Avoid obstacles and survive as long as possible!</p>
+    <button onclick="startGame()">Start Game</button>
+</div>
 
-    <div class="canvas-wrapper">
-      <canvas id="gameCanvas" width="900" height="450"></canvas>
-    </div>
+<div id="gameOverScreen" class="screen" style="display:none;">
+    <h1>Game Over</h1>
+    <p id="finalScore"></p>
+    <button onclick="restartGame()">Restart</button>
+</div>
 
-    <div class="controls">
-      <button id="restartButton">Restart</button>
-      <p class="help">One-button game: use one key or one click only.</p>
-    </div>
-  </div>
+<div id="score" style="display:none;">Score: 0</div>
 
-  <script src="script.js"></script>
+<canvas id="gameCanvas" width="800" height="300"></canvas>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let player, obstacles, score, frame, running;
+
+// SPACEBAR only interaction
+document.addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+        if (running && player.grounded) {
+            player.dy = -12;
+            player.grounded = false;
+        }
+    }
+});
+
+function startGame() {
+    document.getElementById("startScreen").style.display = "none";
+    document.getElementById("score").style.display = "block";
+    init();
+}
+
+function restartGame() {
+    document.getElementById("gameOverScreen").style.display = "none";
+    init();
+}
+
+function init() {
+    player = {
+        x: 100,
+        y: 200,
+        size: 30,
+        dy: 0,
+        gravity: 0.8,
+        grounded: true
+    };
+
+    obstacles = [];
+    score = 0;
+    frame = 0;
+    running = true;
+
+    gameLoop();
+}
+
+function gameOver() {
+    running = false;
+    document.getElementById("finalScore").innerText = "Final Score: " + score;
+    document.getElementById("gameOverScreen").style.display = "block";
+}
+
+function update() {
+    if (!running) return;
+
+    frame++;
+    score++;
+    document.getElementById("score").innerText = "Score: " + score;
+
+    // Player physics
+    player.dy += player.gravity;
+    player.y += player.dy;
+
+    if (player.y >= 200) {
+        player.y = 200;
+        player.dy = 0;
+        player.grounded = true;
+    }
+
+    // Spawn obstacles
+    if (frame % 90 === 0) {
+        obstacles.push({
+            x: canvas.width,
+            y: 210,
+            width: 20,
+            height: 40
+        });
+    }
+
+    // Move obstacles
+    obstacles.forEach((obs, i) => {
+        obs.x -= 6;
+
+        // Collision
+        if (
+            player.x < obs.x + obs.width &&
+            player.x + player.size > obs.x &&
+            player.y < obs.y + obs.height &&
+            player.y + player.size > obs.y
+        ) {
+            gameOver();
+        }
+
+        // Remove off screen
+        if (obs.x + obs.width < 0) {
+            obstacles.splice(i, 1);
+        }
+    });
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Ground
+    ctx.fillStyle = "#00c9a7";
+    ctx.fillRect(0, 230, canvas.width, 5);
+
+    // Player
+    ctx.fillStyle = "#00c9a7";
+    ctx.fillRect(player.x, player.y, player.size, player.size);
+
+    // Obstacles
+    ctx.fillStyle = "#ff4d6d";
+    obstacles.forEach(obs => {
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+    });
+}
+
+function gameLoop() {
+    update();
+    draw();
+    if (running) requestAnimationFrame(gameLoop);
+}
+</script>
+
 </body>
 </html>
-:root {
-  --bg: #112233;
-  --ground: #172b42;
-  --accent: #ffd23f;
-  --text: #eef4ff;
-  --panel: rgba(17, 34, 51, 0.85);
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at top, #4e7ecb 0%, #112233 55%);
-  color: var(--text);
-  font-family: Inter, system-ui, sans-serif;
-}
-
-.app-shell {
-  width: min(100%, 980px);
-  padding: 20px;
-}
-
-header {
-  text-align: center;
-  margin-bottom: 18px;
-}
-
-h1 {
-  margin: 0 0 8px;
-  font-size: clamp(2rem, 4vw, 3rem);
-}
-
-p {
-  margin: 0;
-  color: #d3e0ff;
-}
-
-.hud {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.score,
-.status {
-  background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  padding: 12px 16px;
-  font-size: 1rem;
-}
-
-.canvas-wrapper {
-  position: relative;
-  border-radius: 26px;
-  overflow: hidden;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
-}
-
-canvas {
-  display: block;
-  width: 100%;
-  max-width: 900px;
-  height: auto;
-  background: linear-gradient(to top, #0e1a2c 20%, #16305a 45%, #2d5f9e 100%);
-}
-
-.controls {
-  margin-top: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-button {
-  border: none;
-  cursor: pointer;
-  padding: 12px 20px;
-  border-radius: 999px;
-  background: #ffd23f;
-  color: #102237;
-  font-weight: 700;
-  box-shadow: 0 10px 20px rgba(255, 210, 63, 0.28);
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
-button:hover {
-  transform: translateY(-2px);
-  background: #ffdc61;
-}
-
-.help {
-  margin: 0;
-  color: #b8cef2;
-}
-
-@media (max-width: 620px) {
-  .hud {
-    flex-direction: column;
-  }
-
-  button {
-    width: 100%;
-  }
-}
-
