@@ -1,192 +1,225 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Geometry Dash Mini</title>
+<title>Mini Geometry Dash</title>
 <style>
     body {
         margin: 0;
         font-family: Arial, sans-serif;
-        background: linear-gradient(135deg, #0f2027, #2c5364);
+        background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
         color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+
+    #gameContainer {
         text-align: center;
     }
 
     canvas {
-        display: block;
-        margin: 20px auto;
         background: #111;
+        border: 3px solid #00e5ff;
         border-radius: 10px;
-        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        display: none;
     }
 
     .screen {
-        position: absolute;
-        width: 100%;
-        top: 30%;
-        left: 0;
+        max-width: 400px;
     }
 
     button {
         padding: 10px 20px;
-        border: none;
-        border-radius: 6px;
-        background: #00c9a7;
-        color: white;
         font-size: 16px;
+        border: none;
+        border-radius: 5px;
+        background: #00e5ff;
+        color: black;
         cursor: pointer;
+        margin-top: 15px;
     }
 
     button:hover {
-        background: #00a38a;
+        background: #00bcd4;
     }
 
     #score {
-        font-size: 20px;
+        margin-top: 10px;
+        font-size: 18px;
     }
 </style>
 </head>
 <body>
 
-<div id="startScreen" class="screen">
-    <h1>Geometry Dash Mini</h1>
-    <p>Press <b>SPACEBAR</b> to jump</p>
-    <p>Avoid obstacles and survive as long as possible!</p>
-    <button onclick="startGame()">Start Game</button>
+<div id="gameContainer">
+
+    <!-- START SCREEN -->
+    <div id="startScreen" class="screen">
+        <h1>Geometry Dash Mini</h1>
+        <p>
+            Press <b>SPACEBAR</b> to jump.<br>
+            Avoid the spikes.<br>
+            Survive as long as possible!
+        </p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <!-- GAME -->
+    <canvas id="gameCanvas" width="500" height="200"></canvas>
+    <div id="score"></div>
+
+    <!-- GAME OVER -->
+    <div id="gameOverScreen" class="screen" style="display:none;">
+        <h2>Game Over</h2>
+        <p id="finalScore"></p>
+        <button onclick="restartGame()">Restart</button>
+    </div>
+
 </div>
-
-<div id="gameOverScreen" class="screen" style="display:none;">
-    <h1>Game Over</h1>
-    <p id="finalScore"></p>
-    <button onclick="restartGame()">Restart</button>
-</div>
-
-<div id="score" style="display:none;">Score: 0</div>
-
-<canvas id="gameCanvas" width="800" height="300"></canvas>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-let player, obstacles, score, frame, running;
+let player, gravity, obstacles, gameSpeed, score, isGameRunning;
 
-// SPACEBAR only interaction
-document.addEventListener("keydown", (e) => {
-    if (e.code === "Space") {
-        if (running && player.grounded) {
-            player.dy = -12;
-            player.grounded = false;
-        }
-    }
-});
-
-function startGame() {
-    document.getElementById("startScreen").style.display = "none";
-    document.getElementById("score").style.display = "block";
-    init();
-}
-
-function restartGame() {
-    document.getElementById("gameOverScreen").style.display = "none";
-    init();
-}
-
-function init() {
+// PLAYER
+function initGame() {
     player = {
-        x: 100,
-        y: 200,
-        size: 30,
+        x: 50,
+        y: 150,
+        width: 20,
+        height: 20,
         dy: 0,
-        gravity: 0.8,
-        grounded: true
+        jumping: false
     };
 
+    gravity = 0.6;
     obstacles = [];
+    gameSpeed = 4;
     score = 0;
-    frame = 0;
-    running = true;
-
-    gameLoop();
+    isGameRunning = true;
 }
 
-function gameOver() {
-    running = false;
-    document.getElementById("finalScore").innerText = "Final Score: " + score;
-    document.getElementById("gameOverScreen").style.display = "block";
+// DRAW PLAYER
+function drawPlayer() {
+    ctx.fillStyle = "#00e5ff";
+    ctx.fillRect(player.x, player.y, player.width, player.height);
 }
 
-function update() {
-    if (!running) return;
-
-    frame++;
-    score++;
-    document.getElementById("score").innerText = "Score: " + score;
-
-    // Player physics
-    player.dy += player.gravity;
-    player.y += player.dy;
-
-    if (player.y >= 200) {
-        player.y = 200;
-        player.dy = 0;
-        player.grounded = true;
-    }
-
-    // Spawn obstacles
-    if (frame % 90 === 0) {
-        obstacles.push({
-            x: canvas.width,
-            y: 210,
-            width: 20,
-            height: 40
-        });
-    }
-
-    // Move obstacles
-    obstacles.forEach((obs, i) => {
-        obs.x -= 6;
-
-        // Collision
-        if (
-            player.x < obs.x + obs.width &&
-            player.x + player.size > obs.x &&
-            player.y < obs.y + obs.height &&
-            player.y + player.size > obs.y
-        ) {
-            gameOver();
-        }
-
-        // Remove off screen
-        if (obs.x + obs.width < 0) {
-            obstacles.splice(i, 1);
-        }
-    });
-}
-
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Ground
-    ctx.fillStyle = "#00c9a7";
-    ctx.fillRect(0, 230, canvas.width, 5);
-
-    // Player
-    ctx.fillStyle = "#00c9a7";
-    ctx.fillRect(player.x, player.y, player.size, player.size);
-
-    // Obstacles
-    ctx.fillStyle = "#ff4d6d";
+// DRAW OBSTACLES
+function drawObstacles() {
+    ctx.fillStyle = "#ff1744";
     obstacles.forEach(obs => {
         ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
     });
 }
 
+// UPDATE
+function update() {
+    // PLAYER PHYSICS
+    player.y += player.dy;
+    player.dy += gravity;
+
+    if (player.y >= 150) {
+        player.y = 150;
+        player.dy = 0;
+        player.jumping = false;
+    }
+
+    // OBSTACLES
+    if (Math.random() < 0.02) {
+        obstacles.push({
+            x: canvas.width,
+            y: 150,
+            width: 20,
+            height: 20
+        });
+    }
+
+    obstacles.forEach(obs => obs.x -= gameSpeed);
+
+    // COLLISION
+    for (let obs of obstacles) {
+        if (
+            player.x < obs.x + obs.width &&
+            player.x + player.width > obs.x &&
+            player.y < obs.y + obs.height &&
+            player.y + player.height > obs.y
+        ) {
+            gameOver();
+        }
+    }
+
+    // REMOVE OLD OBSTACLES
+    obstacles = obstacles.filter(obs => obs.x > -20);
+
+    // SCORE
+    score++;
+    document.getElementById("score").innerText = "Score: " + score;
+}
+
+// DRAW
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // ground
+    ctx.fillStyle = "#444";
+    ctx.fillRect(0, 170, canvas.width, 5);
+
+    drawPlayer();
+    drawObstacles();
+}
+
+// GAME LOOP
 function gameLoop() {
+    if (!isGameRunning) return;
+
     update();
     draw();
-    if (running) requestAnimationFrame(gameLoop);
+
+    requestAnimationFrame(gameLoop);
 }
+
+// START
+function startGame() {
+    document.getElementById("startScreen").style.display = "none";
+    canvas.style.display = "block";
+    document.getElementById("score").style.display = "block";
+
+    initGame();
+    gameLoop();
+}
+
+// GAME OVER
+function gameOver() {
+    isGameRunning = false;
+
+    canvas.style.display = "none";
+    document.getElementById("score").style.display = "none";
+
+    document.getElementById("gameOverScreen").style.display = "block";
+    document.getElementById("finalScore").innerText = "Final Score: " + score;
+}
+
+// RESTART
+function restartGame() {
+    document.getElementById("gameOverScreen").style.display = "none";
+    startGame();
+}
+
+// SINGLE INTERACTION: SPACEBAR
+document.addEventListener("keydown", function(e) {
+    if (e.code === "Space") {
+        if (!player.jumping && isGameRunning) {
+            player.dy = -10;
+            player.jumping = true;
+        }
+    }
+});
 </script>
 
 </body>
