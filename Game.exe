@@ -262,4 +262,153 @@ resetGame();
 requestAnimationFrame((timestamp) => {
   lastTime = timestamp;
   gameLoop(timestamp);
-});
+}); 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Duck Dash — Geometry Dash Duck Clone</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <h1>Duck Dash</h1>
+      <p>Press <strong>space</strong> or click/tap to jump. Dodge the obstacles!</p>
+    </header>
+
+    <div class="hud">
+      <div class="score">Score: <span id="score">0</span></div>
+      <div class="status" id="status">Press space or click to start</div>
+    </div>
+
+    <div class="canvas-wrapper">
+      <canvas id="gameCanvas" width="900" height="450"></canvas>
+    </div>
+
+    <div class="controls">
+      <button id="restartButton">Restart</button>
+      <p class="help">One-button game: use one key or one click only.</p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
+:root {
+  --bg: #112233;
+  --ground: #172b42;
+  --accent: #ffd23f;
+  --text: #eef4ff;
+  --panel: rgba(17, 34, 51, 0.85);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at top, #4e7ecb 0%, #112233 55%);
+  color: var(--text);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.app-shell {
+  width: min(100%, 980px);
+  padding: 20px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+p {
+  margin: 0;
+  color: #d3e0ff;
+}
+
+.hud {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.score,
+.status {
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 1rem;
+}
+
+.canvas-wrapper {
+  position: relative;
+  border-radius: 26px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  background: linear-gradient(to top, #0e1a2c 20%, #16305a 45%, #2d5f9e 100%);
+}
+
+.controls {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+button {
+  border: none;
+  cursor: pointer;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: #ffd23f;
+  color: #102237;
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(255, 210, 63, 0.28);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  background: #ffdc61;
+}
+
+.help {
+  margin: 0;
+  color: #b8cef2;
+}
+
+@media (max-width: 620px) {
+  .hud {
+    flex-direction: column;
+  }
+
+  button {
+    width: 100%;
+  }
+}
+
